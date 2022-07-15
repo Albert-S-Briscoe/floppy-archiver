@@ -125,6 +125,16 @@ getdiskname() {
 
 }
 
+readdisk() {
+	whiptail --nocancel --title 'Insert disk' --msgbox 'Insert the disk, then continue' $whiptail_height $whiptail_width 3>&1 1>&2 2>&3
+	if sudo ddrescue -d -n -r3 /dev/sdb "${filename}.img" "${filename}.map"; then
+		whiptail --nocancel --title 'Success' --msgbox '' $whiptail_height $whiptail_width 3>&1 1>&2 2>&3
+	else
+		whiptail --nocancel --title 'Failed to ddrescue disk' --msgbox '' $whiptail_height $whiptail_width 3>&1 1>&2 2>&3
+	fi
+	sudo eject /dev/sdb
+}
+
 # Archives a disk
 archivedisks() {
 	getstate
@@ -153,6 +163,7 @@ archivedisks() {
 
 		#do disk imaging,
 		#if ddrescue had trouble, save the map too, otherwise discard it.
+		readdisk
 
 		# Ask if you have more disks
 		if whiptail --nocancel --title 'Archive another?' --yesno 'Do you want to archive another disk?' $whiptail_height $whiptail_width 3>&1 1>&2 2>&3; then
