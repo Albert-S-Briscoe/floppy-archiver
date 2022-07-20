@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Disk
+drive="/dev/sdb"
+
 # Webcam options
 videosize="640x480"
 pixelformat="yuyv422"
@@ -127,12 +130,12 @@ getdiskname() {
 
 readdisk() {
 	whiptail --nocancel --title 'Insert disk' --msgbox 'Insert the disk, then continue' $whiptail_height $whiptail_width 3>&1 1>&2 2>&3
-	if sudo ddrescue -d -n -r3 /dev/sdb "${filename}.img" "${filename}.map"; then
+	if sudo ddrescue -d -n -r3 "$drive" "${archivepath}/${filename}.img" "${archivepath}/${filename}.map"; then
 		whiptail --nocancel --title 'Success' --msgbox '' $whiptail_height $whiptail_width 3>&1 1>&2 2>&3
 	else
 		whiptail --nocancel --title 'Failed to ddrescue disk' --msgbox '' $whiptail_height $whiptail_width 3>&1 1>&2 2>&3
 	fi
-	sudo eject /dev/sdb
+	sudo eject "$drive"
 }
 
 # Archives a disk
