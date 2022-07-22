@@ -4,10 +4,19 @@
 drive="/dev/sdb"
 
 # Webcam options
-videosize="640x480"
-pixelformat="yuyv422"
 framerate="15"
 tmppath="/tmp/disk.png"
+webcamformat="mjpeg"
+
+#videosizeopt="-video_size"
+videosizeopt=
+#ffplayvideosize="1920x1080"
+ffplayvideosize=
+ffmpegvideosize="1920x1080"
+#pixelformatopt="-pixel_format"
+pixelformatopt=
+#pixelformat="yuyv422"
+pixelformat=
 
 # Folder to save the files in
 archivepath="./archive"
@@ -66,7 +75,8 @@ webcamsetup() {
 getphoto() {
 	# webcam -> splitter -> stdout -> ffplay -> preview screen
 	#               \-> png file in /tmp, overwritten with every frame
-	ffmpeg -r "$framerate" -s "$videosize" -i "$webcamdev" -an -update 1 -y "$tmppath" -an -c:v copy -f rawvideo - 2>/dev/null | ffplay -f rawvideo -video_size "$videosize" -pixel_format "$pixelformat" - 2>/dev/null
+#	ffmpeg -r "$framerate" -s "$videosize" -i "$webcamdev" -an -update 1 -y "$tmppath" -an -c:v copy -f rawvideo - 2>/dev/null | ffplay -f rawvideo -video_size "$videosize" -pixel_format "$pixelformat" - 2>/dev/null
+	ffmpeg -r "$framerate" -s "$ffmpegvideosize" -i "$webcamdev" -an -update 1 -y "$tmppath" -an -c:v copy -f rawvideo - 2>/dev/null | ffplay -f "$webcamformat" $videosizeop $ffplayvideosize $pixelformatopt $pixelformat -
 	cp "$tmppath" "$archivepath/$filename.png"
 }
 
@@ -75,6 +85,8 @@ getdiskname() {
 
 	# Ask for stack, current as default.
 	laststackserial="$stackserial"
+	laststackserial="$(echo "$laststackserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent $(( ... )) from thinking decimal is octal
+	lastnewstack="$(echo "$lastnewstack" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent $(( ... )) from thinking decimal is octal
 	stackserial="$(whiptail --nocancel --title 'Stack Number' --menu 'Serial number of the current stack/group of disks' $whiptail_height $whiptail_width 5 \
 		"$stackserial"				'Current number' \
 		"$((lastnewstack + 1))"		'Next available stack' \
@@ -84,6 +96,7 @@ getdiskname() {
 		stackserial="$(whiptail --nocancel --title 'Stack Number' --inputbox 'Serial number of the current stack/group of disks' $whiptail_height $whiptail_width "$laststackserial" 3>&1 1>&2 2>&3 \
 			| sed 's/[^0-9]//g')"
 	fi
+	stackserial="$(echo "$stackserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent things from thinking decimal is octal
 	if [[ "$stackserial" -gt "$((lastnewstack + 1))" ]]; then
 		echo "Stack number greater than next available stack. Clamping to that."
 		stackserial="$((lastnewstack + 1))"
@@ -91,6 +104,7 @@ getdiskname() {
 	if [[ "$stackserial" -eq "$((lastnewstack + 1))" ]]; then
 		lastnewstack="$stackserial"
 	fi
+	stackserial="$(echo "$stackserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent printf from thinking decimal is octal
 	stackserial="$(printf "%02d" "$stackserial")"
 	filename="${filename}-${stackserial}"
 
@@ -187,3 +201,7 @@ webcamsetup
 echo "Using webcam: $webcamdev"
 
 archivedisks
+#ffmpeg -r "$framerate" -s "$videosize" -i "$webcamdev" -an -update 1 -y "$tmppath" -an -c:v copy -f rawvideo - | ffplay -f rawvideo -video_size "$videosize" -pixel_format "$pixelformat" - 2>/dev/null
+
+#ffmpeg -r "$framerate" -s "$videosize" -i "$webcamdev" -an -c:v copy -f rawvideo - 2>/dev/null | ffplay -f "$webcamformat" $pixelformatopt $pixelformat -
+#ffmpeg -r "$framerate" -s "$ffmpegvideosize" -i "$webcamdev" -an -update 1 -y "$tmppath" -an -c:v copy -f rawvideo - 2>/dev/null | ffplay -f "$webcamformat" $videosizeop $ffplayvideosize $pixelformatopt $pixelformat -
