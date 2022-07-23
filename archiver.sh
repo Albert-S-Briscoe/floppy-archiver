@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Disk
-drive="/dev/sdb"
+#drive="/dev/sdb"
 
 # Webcam options
 framerate="15"
@@ -63,13 +63,34 @@ savestate() {
 }
 
 webcamsetup() {
-	numwebcams="$(find /dev/video* | wc -l)"
-	for i in $(eval echo "{0..$((numwebcams - 1))}"); do
-		webcamoptions+=("/dev/video$i" ".")
+#	numwebcams="$(find /dev/video* | wc -l)"
+#	for i in $(eval echo "{0..$((numwebcams - 1))}"); do
+#		webcamoptions+=("/dev/video$i" ".")
+#	done
+	webcamoptions=()
+	numwebcams=0
+	for i in /dev/video*; do
+		webcamoptions+=("$i" ".")
+		numwebcams=$((numwebcams + 1))
 	done
 
 	webcamdev="$(whiptail --nocancel --title 'Webcam selection' --menu 'Webcam to take disk photos with' $whiptail_height $whiptail_width $((numwebcams + 1)) \
 		"${webcamoptions[@]}" 3>&1 1>&2 2>&3)"
+}
+
+disksetup() {
+#	lsblk -dpnro rm,name,size,type -x type | egrep '^1' | sed 's/^..//'
+#	lsblk -dpnro rm,name,size,type -x type | egrep '^0' | sed 's/^..//'
+	disks=()
+	numdisks=0
+	while IFS= read -r line; do
+		disks+=("$(cut -d' ' -f 1 <<<"$line")" "$(cut -d' ' -f 2,3 <<<"$line" | sed 's/^/ /')")
+		numdisks=$((numdisks+1))
+	done <<<"$(lsblk -dpnro rm,name,size,type -x type | egrep '^1' | sort | sed 's/^..//')"
+#	for i in "${testvar[@]}"; do echo "$i"; done
+
+	drive="$(whiptail --nocancel --title 'Disk selection' --menu 'Floppy drive to use' $whiptail_height $whiptail_width $((numwebcams + 2)) \
+		"${disks[@]}" 3>&1 1>&2 2>&3)"
 }
 
 getphoto() {
@@ -185,6 +206,7 @@ archivedisks() {
 		# Ask if you have more disks
 		if whiptail --nocancel --title 'Archive another?' --yesno 'Do you want to archive another disk?' $whiptail_height $whiptail_width 3>&1 1>&2 2>&3; then
 			true # do nothing
+			# could be `:`?
 		else
 			break
 		fi
@@ -192,16 +214,38 @@ archivedisks() {
 	done
 }
 
-#disks="$(lsblk)"
-#echo "${disks}"
+remapstacks() {
+	# remap stacks (16 to 10) (needs archive path added):
+	# for i in *-16-*; do mv "$i" $(echo "$i" | sed 's/-16-/-10-/'); done
+	echo "not implemented"
+}
 
-#whiptail --title 'aoeu' --msgbox "info" $whiptail_height $whiptail_width
+inspectdisk() {
+	echo "not implemented"
+}
+
+mainmenu() {
+	while true; do
+		case $(whiptail --nocancel --title 'Main menu' --menu 'What do you want to do?' $whiptail_height $whiptail_width 7 \
+			'1' 'Archive disks' \
+			'2' "Change drive ($drive)" \
+			'3' "Chane webcam ($webcamdev)" \
+			'4' 'Remap stacks (be careful)' \
+			'5' 'Inspect disk' \
+			'6' 'exit' 3>&1 1>&2 2>&3) in
+
+			1) archivedisks;;
+			2) disksetup;;
+			3) webcamsetup;;
+			4) remapstacks;;
+			5) inspectdisk;;
+			6) break;;
+		esac
+	done
+}
 
 webcamsetup
+disksetup
 echo "Using webcam: $webcamdev"
 
-archivedisks
-#ffmpeg -r "$framerate" -s "$videosize" -i "$webcamdev" -an -update 1 -y "$tmppath" -an -c:v copy -f rawvideo - | ffplay -f rawvideo -video_size "$videosize" -pixel_format "$pixelformat" - 2>/dev/null
-
-#ffmpeg -r "$framerate" -s "$videosize" -i "$webcamdev" -an -c:v copy -f rawvideo - 2>/dev/null | ffplay -f "$webcamformat" $pixelformatopt $pixelformat -
-#ffmpeg -r "$framerate" -s "$ffmpegvideosize" -i "$webcamdev" -an -update 1 -y "$tmppath" -an -c:v copy -f rawvideo - 2>/dev/null | ffplay -f "$webcamformat" $videosizeop $ffplayvideosize $pixelformatopt $pixelformat -
+mainmenu
