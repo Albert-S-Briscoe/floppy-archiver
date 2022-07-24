@@ -6,23 +6,27 @@
 # Webcam options
 framerate="15"
 tmppath="/tmp/disk.png"
-webcamformat="mjpeg"
+#webcamformat="mjpeg"
 
 #videosizeopt="-video_size"
-videosizeopt=
+#videosizeopt=
 #ffplayvideosize="1920x1080"
-ffplayvideosize=
+#ffplayvideosize=
 ffmpegvideosize="1920x1080"
 #pixelformatopt="-pixel_format"
-pixelformatopt=
+#pixelformatopt=
 #pixelformat="yuyv422"
-pixelformat=
+#pixelformat=
+
+# -f "$webcamformat" $videosizeopt $ffplayvideosize $pixelformatopt $pixelformat
+ffplayopts=(-f mjpeg)
 
 # Folder to save the files in
 archivepath="./archive"
 
 
 # Automatic setup stuff
+shopt -s extglob
 whiptail_height="$(($(tput lines) - 6))"
 whiptail_width="$(($(tput cols) - 20))"
 if [[ ! -e "$archivepath" ]]; then
@@ -63,41 +67,42 @@ savestate() {
 }
 
 webcamsetup() {
-#	numwebcams="$(find /dev/video* | wc -l)"
-#	for i in $(eval echo "{0..$((numwebcams - 1))}"); do
-#		webcamoptions+=("/dev/video$i" ".")
-#	done
 	webcamoptions=()
-	numwebcams=0
 	for i in /dev/video*; do
 		webcamoptions+=("$i" ".")
-		numwebcams=$((numwebcams + 1))
 	done
 
-	webcamdev="$(whiptail --nocancel --title 'Webcam selection' --menu 'Webcam to take disk photos with' $whiptail_height $whiptail_width $((numwebcams + 1)) \
+	webcamdev="$(whiptail --nocancel --title 'Webcam selection' --menu 'Webcam to take disk photos with' $whiptail_height $whiptail_width $((${#webcamoptions[@]} / 2 + 1)) \
 		"${webcamoptions[@]}" 3>&1 1>&2 2>&3)"
 }
 
 disksetup() {
-#	lsblk -dpnro rm,name,size,type -x type | egrep '^1' | sed 's/^..//'
-#	lsblk -dpnro rm,name,size,type -x type | egrep '^0' | sed 's/^..//'
+#	lsblk -dpnro rm,name,size,type -x type | grep -E '^1' | sed 's/^..//'
+#	lsblk -dpnro rm,name,size,type -x type | grep -E '^0' | sed 's/^..//'
 	disks=()
-	numdisks=0
 	while IFS= read -r line; do
 		disks+=("$(cut -d' ' -f 1 <<<"$line")" "$(cut -d' ' -f 2,3 <<<"$line" | sed 's/^/ /')")
-		numdisks=$((numdisks+1))
-	done <<<"$(lsblk -dpnro rm,name,size,type -x type | egrep '^1' | sort | sed 's/^..//')"
-#	for i in "${testvar[@]}"; do echo "$i"; done
+	done <<<"$(lsblk -dpnro rm,name,size,type -x type | grep -E '^1' | sort | sed 's/^..//')"
 
-	drive="$(whiptail --nocancel --title 'Disk selection' --menu 'Floppy drive to use' $whiptail_height $whiptail_width $((numwebcams + 2)) \
-		"${disks[@]}" 3>&1 1>&2 2>&3)"
+	drive="$(whiptail --nocancel --title 'Disk selection' --menu 'Floppy drive to use' $whiptail_height $whiptail_width $((${#disks[@]} / 2 + 2)) \
+		"${disks[@]}" \
+		'c' 'more' 3>&1 1>&2 2>&3)"
+	if [[ "$drive" == 'c' ]]; then
+		disks=()
+		while IFS= read -r line; do
+			disks+=("$(cut -d' ' -f 1 <<<"$line")" "$(cut -d' ' -f 2,3,4 <<<"$line" | sed 's/^/ /')")
+		done <<<"$(lsblk -dpnro name,rm,size,type -x type | sort)"
+
+		drive="$(whiptail --nocancel --title 'Disk selection' --menu 'Floppy drive to use' $whiptail_height $whiptail_width $((${#disks[@]} / 2 + 1)) \
+			"${disks[@]}" 3>&1 1>&2 2>&3)"
+	fi
 }
 
 getphoto() {
 	# webcam -> splitter -> stdout -> ffplay -> preview screen
 	#               \-> png file in /tmp, overwritten with every frame
 #	ffmpeg -r "$framerate" -s "$videosize" -i "$webcamdev" -an -update 1 -y "$tmppath" -an -c:v copy -f rawvideo - 2>/dev/null | ffplay -f rawvideo -video_size "$videosize" -pixel_format "$pixelformat" - 2>/dev/null
-	ffmpeg -r "$framerate" -s "$ffmpegvideosize" -i "$webcamdev" -an -update 1 -y "$tmppath" -an -c:v copy -f rawvideo - 2>/dev/null | ffplay -f "$webcamformat" $videosizeop $ffplayvideosize $pixelformatopt $pixelformat -
+	ffmpeg -r "$framerate" -s "$ffmpegvideosize" -i "$webcamdev" -an -update 1 -y "$tmppath" -an -c:v copy -f rawvideo - 2>/dev/null | ffplay "${ffplayopts[@]}" -
 	cp "$tmppath" "$archivepath/$filename.png"
 }
 
@@ -106,8 +111,10 @@ getdiskname() {
 
 	# Ask for stack, current as default.
 	laststackserial="$stackserial"
-	laststackserial="$(echo "$laststackserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent $(( ... )) from thinking decimal is octal
-	lastnewstack="$(echo "$lastnewstack" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent $(( ... )) from thinking decimal is octal
+#	laststackserial="$(echo "$laststackserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent $(( ... )) from thinking decimal is octal
+	laststackserial="${laststackserial/#+(0)}"
+#	lastnewstack="$(echo "$lastnewstack" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent $(( ... )) from thinking decimal is octal
+	lastnewstack="${lastnewstack/#+(0)}"
 	stackserial="$(whiptail --nocancel --title 'Stack Number' --menu 'Serial number of the current stack/group of disks' $whiptail_height $whiptail_width 5 \
 		"$stackserial"				'Current number' \
 		"$((lastnewstack + 1))"		'Next available stack' \
@@ -117,7 +124,8 @@ getdiskname() {
 		stackserial="$(whiptail --nocancel --title 'Stack Number' --inputbox 'Serial number of the current stack/group of disks' $whiptail_height $whiptail_width "$laststackserial" 3>&1 1>&2 2>&3 \
 			| sed 's/[^0-9]//g')"
 	fi
-	stackserial="$(echo "$stackserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent things from thinking decimal is octal
+#	stackserial="$(echo "$stackserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent things from thinking decimal is octal
+	stackserial="${stackserial/#+(0)}"
 	if [[ "$stackserial" -gt "$((lastnewstack + 1))" ]]; then
 		echo "Stack number greater than next available stack. Clamping to that."
 		stackserial="$((lastnewstack + 1))"
@@ -125,7 +133,8 @@ getdiskname() {
 	if [[ "$stackserial" -eq "$((lastnewstack + 1))" ]]; then
 		lastnewstack="$stackserial"
 	fi
-	stackserial="$(echo "$stackserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent printf from thinking decimal is octal
+#	stackserial="$(echo "$stackserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent printf from thinking decimal is octal
+	stackserial="${stackserial/#+(0)}"
 	stackserial="$(printf "%02d" "$stackserial")"
 	filename="${filename}-${stackserial}"
 
@@ -177,8 +186,9 @@ readdisk() {
 archivedisks() {
 	getstate
 	while true; do
-		diskserial="$(echo "$diskserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent $(( ... )) from thinking decimal is octal
-		diskserial="$(($diskserial + 1))" # increment
+#		diskserial="$(echo "$diskserial" | sed 's/^0*\(.*\)$/\1/')" # remove starting 0s to prevent $(( ... )) from thinking decimal is octal
+		diskserial="${diskserial/#+(0)}"
+		diskserial="$((diskserial + 1))" # increment
 		diskserial="$(printf "%06d" "$diskserial")" # Print as 6 digits zero padded
 
 		# get disk filename
